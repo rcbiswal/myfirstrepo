@@ -1,0 +1,93 @@
+pipeline {
+
+  agent any
+
+  stages {
+
+    stage ('Git clone') {
+      steps {
+        sh 'rm -Rf gts-bootcamp >/dev/null'
+        sh 'git clone https://github.com/gts-bootcamp/gts-bootcamp'
+      }
+    }
+
+    stage ('Install Terraform') {
+      steps {
+        dir ('gts-bootcamp') {
+          sh 'wget -q https://releases.hashicorp.com/terraform/0.11.1/terraform_0.11.1_linux_amd64.zip'
+          sh 'unzip -o terraform_0.11.1_linux_amd64.zip'
+          sh 'rm terraform_0.11.1_linux_amd64.zip'
+        }
+      }
+    }
+
+    stage ('Terraform init') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                        accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
+                        secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                        credentialsId: 'Jenkins IAM user']]) {
+          dir ('gts-bootcamp') {
+          sh './terraform init'
+          }
+        }
+      }
+    }
+
+    stage ('Terraform plan') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                        accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
+                        secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                        credentialsId: 'Jenkins IAM user']]) {
+          dir ('gts-bootcamp') {
+          sh './terraform plan'
+          }
+        }
+      }
+    }
+
+    stage ('Terraform apply') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                        accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
+                        secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                        credentialsId: 'Jenkins IAM user']]) {
+          dir ('gts-bootcamp') {
+          sh './terraform apply -auto-approve -var name=<!<!CHANGE-ME!>!>'
+          }
+        }
+      }
+    }
+
+    stage ('Terraform destroy') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                        accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
+                        secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                        credentialsId: 'Jenkins IAM user']]) {
+          dir ('gts-bootcamp') {
+          sh './terraform destroy -force'
+          }
+        }
+      }
+    }
+
+  }
+  
+  post {
+    always  {
+      echo "Build completed. currentBuild.result = ${currentBuild.result}"
+    }
+
+    failure {
+      echo 'Build failed.'
+    }
+
+    success {
+      echo 'Build was a success.'
+      deleteDir()
+    }
+
+  }
+}
